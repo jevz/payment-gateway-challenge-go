@@ -15,16 +15,118 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/ping": {
+        "/api/payments": {
+            "post": {
+                "description": "Validates the request, sends it to the acquiring bank and stores the result.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Process a card payment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Optional key that makes retries safe",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Payment request",
+                        "name": "payment",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PostPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Authorized or Declined",
+                        "schema": {
+                            "$ref": "#/definitions/models.PostPaymentResponse"
+                        }
+                    },
+                    "202": {
+                        "description": "Duplicate Idempotency-Key still in flight; poll GET /api/payments/{id}",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.errorResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Failed validation; the bank was not called",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.errorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Idempotency-Key reused with a different body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.errorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bank unavailable or timed out",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payments/{id}": {
             "get": {
                 "produces": [
                     "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Retrieve a payment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Payment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.Pong"
+                            "$ref": "#/definitions/models.GetPaymentResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "No payment with this ID",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ping": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.pong"
                         }
                     }
                 }
@@ -32,9 +134,118 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "main.Pong": {
+        "api.pong": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.errorResponse": {
+            "type": "object",
+            "properties": {
+                "error_message": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/payment.FieldError"
+                    }
+                },
+                "payment_id": {
+                    "type": "string"
+                },
+                "retryable": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.GetPaymentResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "card_number_last_four": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "expiry_month": {
+                    "type": "integer"
+                },
+                "expiry_year": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "payment_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PostPaymentRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "card_number": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "cvv": {
+                    "type": "string"
+                },
+                "expiry_month": {
+                    "type": "integer"
+                },
+                "expiry_year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.PostPaymentResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "card_number_last_four": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "expiry_month": {
+                    "type": "integer"
+                },
+                "expiry_year": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "payment_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "payment.FieldError": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
                 "message": {
                     "type": "string"
                 }

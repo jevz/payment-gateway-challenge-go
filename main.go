@@ -54,7 +54,12 @@ func run() error {
 		}
 	}()
 
-	api := api.New()
+	bankURL := os.Getenv("BANK_URL")
+	if bankURL == "" {
+		bankURL = "http://localhost:8080"
+	}
+
+	api := api.New(bankURL)
 	if err := api.Run(ctx, ":8090"); err != nil {
 		return err
 	}

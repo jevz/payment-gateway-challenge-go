@@ -5,24 +5,40 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
+	"github.com/cko-recruitment/payment-gateway-challenge-go/internal/bank"
+	"github.com/cko-recruitment/payment-gateway-challenge-go/internal/handlers"
+	"github.com/cko-recruitment/payment-gateway-challenge-go/internal/payment"
 	"github.com/cko-recruitment/payment-gateway-challenge-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/sync/errgroup"
 )
 
+// bankCallTimeout is the deadline for each call to the bank.
+const bankCallTimeout = 3 * time.Second
+
 type Api struct {
-	router       *chi.Mux
-	paymentsRepo *repository.PaymentsRepository
+	router   *chi.Mux
+	payments *handlers.PaymentsHandler
 }
 
-func New() *Api {
+// New builds the repository, bank client, service and handlers, and sets up
+// the routes.
+func New(bankBaseURL string) *Api {
 	a := &Api{}
-	a.paymentsRepo = repository.NewPaymentsRepository()
+	repo := repository.NewPaymentsRepository()
+	bankClient := bank.NewClient(bankBaseURL, bankCallTimeout)
+	a.payments = handlers.NewPaymentsHandler(payment.NewService(bankClient, repo))
 	a.setupRouter()
 
 	return a
+}
+
+// Handler returns the router. Used by the e2e tests.
+func (a *Api) Handler() http.Handler {
+	return a.router
 }
 
 func (a *Api) Run(ctx context.Context, addr string) error {
@@ -60,5 +76,6 @@ func (a *Api) setupRouter() {
 	a.router.Get("/ping", a.PingHandler())
 	a.router.Get("/swagger/*", a.SwaggerHandler())
 
+	a.router.Post("/api/payments", a.PostPaymentHandler())
 	a.router.Get("/api/payments/{id}", a.GetPaymentHandler())
 }
